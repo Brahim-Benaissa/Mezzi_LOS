@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Mezzi Effect</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;overflow:hidden}
+  body{
+    height:100vh;height:100dvh;
+    background:#05050d;color:#c8c8e0;
+    font-family:Georgia,'Times New Roman',serif;
+    display:flex;flex-direction:column;align-items:center;
+  }
+  header{flex:none;text-align:center;padding:1.2vh 16px 0.7vh}
+  h1{
+    font-size:clamp(24px,4.4vmin,42px);font-weight:400;
+    letter-spacing:.16em;color:#ececf6;
+  }
+  .cite{
+    color:#7a7ba0;font-size:clamp(10.5px,1.7vmin,15px);
+    font-style:italic;line-height:1.4;max-width:1000px;margin:0.6vh auto 0;
+  }
+  .cite a{
+    color:#9a9ac8;text-decoration:underline;
+    text-decoration-color:rgba(154,154,200,.35);
+    text-underline-offset:2px;
+  }
+  .cite a:hover{color:#d8d8f4;text-decoration-color:rgba(216,216,244,.6)}
+  .stage{
+    flex:1 1 auto;width:100%;max-width:1600px;min-height:0;
+    position:relative;padding:0 14px 4px;
+  }
+  .stage .box{position:absolute;inset:0 14px 4px}
+  canvas{width:100%;height:100%;display:block;border-radius:8px;background:#03030a;cursor:crosshair}
+  .bar{
+    flex:none;display:flex;align-items:center;justify-content:center;
+    gap:3.2vmin;flex-wrap:wrap;padding:0.9vh 14px 1.3vh;
+  }
+  .seg{
+    display:flex;border:1.5px solid #34345c;border-radius:26px;overflow:hidden;
+    flex-shrink:0;background:#0b0b18;box-shadow:0 3px 16px rgba(0,0,0,.45);
+  }
+  .seg button{
+    background:none;border:none;color:#8a8aa8;padding:1.05vh 3.8vmin;
+    cursor:pointer;text-align:center;transition:background .2s,color .2s,box-shadow .2s;
+  }
+  .seg button:hover{background:rgba(255,255,255,.06);color:#c6c6e2}
+  .seg button b{display:block;font:600 clamp(13px,2.1vmin,17px) system-ui,sans-serif;letter-spacing:.09em}
+  .seg button span{display:block;font:400 clamp(10px,1.55vmin,12.5px) system-ui,sans-serif;color:#63638a;margin-top:2px}
+  #bComp.on{
+    background:linear-gradient(180deg,rgba(123,104,238,.42),rgba(123,104,238,.22));
+    color:#dcd3ff;
+    box-shadow:inset 0 0 0 1px rgba(179,166,255,.55),0 0 14px rgba(123,104,238,.35);
+  }
+  #bComp.on span{color:#a99cf0}
+  #bRigid.on{
+    background:linear-gradient(180deg,rgba(110,150,180,.40),rgba(110,150,180,.20));
+    color:#d2e2ee;
+    box-shadow:inset 0 0 0 1px rgba(150,190,215,.5),0 0 14px rgba(110,150,180,.3);
+  }
+  #bRigid.on span{color:#8fb2c8}
+  .legend{
+    display:flex;gap:2.8vmin;font:clamp(11px,1.75vmin,14.5px) system-ui,sans-serif;
+    color:#9393b8;flex-wrap:wrap;justify-content:center;align-items:center;
+  }
+  .legend i{display:inline-block;width:2.1em;height:1em;border-radius:3px;margin-right:0.45em;vertical-align:-1px}
+  .legend .dot{width:1em;height:1em;border-radius:50%}
+  #tip{position:fixed;display:none;background:#15152c;border:1px solid #2e2e55;border-radius:7px;
+    padding:7px 12px;font:13.5px system-ui,sans-serif;color:#d4d4ec;pointer-events:none;z-index:9;
+    box-shadow:0 4px 18px rgba(0,0,0,.55);line-height:1.5;white-space:nowrap}
+  #tip span{color:#6fd8cf}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>THE MEZZI EFFECT</h1>
+  <h2 class="cite">
+    ILLUSTRATION </a>
+  </h2>
+</header>
+
+<div class="stage"><div class="box"><canvas id="cv"></canvas></div></div>
+
+<div class="bar">
+  <div class="seg">
+    <button id="bRigid"><b>RIGID VACUUM</b><span>C = 0 </span></button>
+    <button id="bComp" class="on"><b>COMPLIANT VACUUM</b><span>C = 377</span></button>
+  </div>
+  <div class="legend">
+    <span><i class="dot" style="background:#ffcf8a"></i>True Frame</span>
+    <span><i class="dot" style="background:#5ad6cf"></i>Observed Frame</span>
+    <span><i style="background:linear-gradient(90deg,hsl(358,75%,62%),hsl(30,80%,60%),hsl(55,75%,60%),hsl(212,75%,62%))"></i>Line of Sight</span>
+  </div>
+</div>
+
+<div id="tip"></div>
+
+<script>
+(function(){
+'use strict';
+var DPR=Math.min(window.devicePixelRatio||1,2), TAU=Math.PI*2;
+
+/* seeded RNG — stable scene */
+var _s=20260413;
+function rnd(){_s=(_s*1664525+1013904223)>>>0;return _s/4294967296;}
+function gauss(){return (rnd()+rnd()+rnd()+rnd()-2)*1.15;}
+
+function add(a,b){return [a[0]+b[0],a[1]+b[1],a[2]+b[2]];}
+function mul(a,s){return [a[0]*s,a[1]*s,a[2]*s];}
+function vlen(a){return Math.hypot(a[0],a[1],a[2]);}
+function vnorm(a){var l=vlen(a)||1;return [a[0]/l,a[1]/l,a[2]/l];}
+function sub(a,b){return [a[0]-b[0],a[1]-b[1],a[2]-b[2]];}
+function cross(a,b){return [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];}
+function dot(a,b){return a[0]*b[0]+a[1]*b[1]+a[2]*b[2];}
+
+/* ============================================================
+   MEZZI PHYSICS (kpc, M☉, km/s)
+   v(r) = -sqrt(2GM/r) · A(r) = ∫ v/(c r') dr' · ζ = exp[C(e^A −1)]
+   ============================================================ */
+var Gk=4.3009e-6, CKMS=299792.458, C_COMP=377, OBS_D=15000;
+var GAL={Md:5.0e10, Rd:3.0, Mb:1.0e10, ab:0.8};
+
+function Menc(r){
+  if(r<=0)return 0;
+  var x=r/GAL.Rd;
+  return GAL.Md*(1-(1+x)*Math.exp(-x))+GAL.Mb*Math.pow(r/(r+GAL.ab),2);
+}
+var AT={lr:[],A:[]};
+(function(){
+  var n=220, lr0=Math.log(0.15), d=(Math.log(OBS_D)-lr0)/n, f=[], i;
+  for(i=0;i<=n;i++) f.push(-Math.sqrt(2*Gk*Menc(Math.exp(lr0+d*i))/Math.exp(lr0+d*i))/CKMS);
+  var cum=new Array(n+1).fill(0);
+  for(i=n-1;i>=0;i--) cum[i]=cum[i+1]+(f[i]+f[i+1])*0.5*d;
+  for(i=0;i<=n;i++){AT.lr.push(lr0+d*i);AT.A.push(cum[i]);}
+})();
+function Aof(r){
+  var L=AT.lr,n=L.length,lr=Math.log(Math.max(r,0.15));
+  if(lr<=L[0])return AT.A[0];
+  if(lr>=L[n-1])return 0;
+  var lo=0,hi=n-1;
+  while(hi-lo>1){var m=(lo+hi)>>1;if(L[m]<lr)lo=m;else hi=m;}
+  var t=(lr-L[lo])/(L[hi]-L[lo]);
+  return AT.A[lo]*(1-t)+AT.A[hi]*t;
+}
+function zetaOf(r){return Math.max(Math.exp(C_COMP*(Math.exp(Aof(r))-1)),0.02);}
+function zetaEff(r,e){return 1+e*(zetaOf(r)-1);}
+
+/* ============================================================
+   TUBE GEOMETRY — both disks lie in the plane ⊥ UAX
+   ============================================================ */
+var UAX=vnorm([-0.363, 0.696, 0.62]);
+var E1=vnorm([-UAX[1], UAX[0], 0]);
+var E2=cross(UAX,E1);
+var OBS_DIST=54;
+var O=mul(UAX,OBS_DIST);
+var RING=12;
+
+function diskPos(r,th,h){
+  return add(add(mul(E1,r*Math.cos(th)),mul(E2,r*Math.sin(th))),mul(UAX,h||0));
+}
+
+/* ============================================================
+   SCENE
+   ============================================================ */
+var stars=[];
+var sources=[];
+
+function armTheta(arm,r){return arm*Math.PI + r*0.42;}
+
+(function(){
+  var i,r,th,dp,h,t,hue,s,l;
+  /* bulge */
+  for(i=0;i<80;i++){
+    r=Math.abs(gauss())*0.85+0.06;
+    var ph=rnd()*TAU, ct=2*rnd()-1, sn=Math.sqrt(Math.max(0,1-ct*ct));
+    var d1=sn*Math.cos(ph), d2=sn*Math.sin(ph);
+    dp=add(mul(E1,r*d1),mul(E2,r*d2));
+    h=r*ct*0.55;
+    stars.push({dp:dp,h:h,p:add(dp,mul(UAX,h)),r:r*Math.sqrt(d1*d1+d2*d2),
+      sz:0.85+rnd()*0.95,src:false,
+      c :'hsla('+(38+rnd()*14)+','+(75+rnd()*15)+'%,'+(74+rnd()*12)+'%,1)',
+      c2:'hsla(176,62%,'+(80+rnd()*8)+'%,0.9)'});
+  }
+  /* disk — two-armed spiral */
+  for(i=0;i<430;i++){
+    r=-Math.log(1-rnd()*0.985)*3.4+0.35; r=Math.min(r,11.8);
+    th=armTheta(i%2,r) + gauss()*(0.20+0.03*r);
+    dp=add(mul(E1,r*Math.cos(th)),mul(E2,r*Math.sin(th)));
+    h=gauss()*(0.30*Math.exp(-r/5)+0.06);
+    t=r/12;
+    if(rnd()<0.045&&r>3.5){hue=326;s=82;l=70;}
+    else if(t<0.32){hue=42-30*t;s=55+rnd()*22;l=74+rnd()*10;}
+    else if(t<0.62){hue=210;s=12+rnd()*22;l=80+rnd()*9;}
+    else{hue=202+rnd()*22;s=45+rnd()*30;l=70+rnd()*14;}
+    stars.push({dp:dp,h:h,p:add(dp,mul(UAX,h)),r:r,sz:0.8+rnd()*1.0,src:false,
+      c:'hsla('+hue+','+s+'%,'+l+'%,1)',
+      c2:'hsla(176,'+Math.min(68,s*0.5+22)+'%,'+Math.min(88,l+5)+'%,0.88)'});
+  }
+  /* ---- ray sources: 8 arm knots with nearly EVEN angular spread ----
+     Knots are genuine members of the spiral (arm θ = arm·π + 0.42r),
+     picked so their angles fall ~45°–50° apart around the cap — the
+     rays then fan out like the ribs of a cone instead of crossing.   */
+  [
+    {r: 8.0, arm:1},   /* θ ≈ 0.22 */
+    {r:10.0, arm:1},   /* θ ≈ 1.06 */
+    {r: 4.0, arm:0},   /* θ ≈ 1.68 */
+    {r: 6.0, arm:0},   /* θ ≈ 2.52 */
+    {r: 8.0, arm:0},   /* θ ≈ 3.36 */
+    {r:10.0, arm:0},   /* θ ≈ 4.20 */
+    {r:11.4,arm:0},    /* θ ≈ 4.79 */
+    {r: 6.0, arm:1}    /* θ ≈ 5.66 */
+  ].forEach(function(k){
+    r=k.r;
+    th=armTheta(k.arm,r) + gauss()*0.05;
+    dp=add(mul(E1,r*Math.cos(th)),mul(E2,r*Math.sin(th)));
+    h=gauss()*0.07;
+    t=r/12;
+    if(t<0.32){hue=42-30*t;s=58;l=83;}
+    else if(t<0.62){hue=212;s=16;l=85;}
+    else{hue=207;s=48;l=79;}
+    var st={dp:dp,h:h,p:add(dp,mul(UAX,h)),r:r,sz:2.0+rnd()*0.5,src:true,
+      c :'hsla('+hue+','+s+'%,'+l+'%,1)',
+      c2:'hsla(178,58%,83%,0.96)'};
+    stars.push(st);
+    sources.push(st);
+  });
+})();
+
+/* ---- ζ → hue mapping ---- */
+var ZMIN=Infinity,ZMAX=-Infinity;
+sources.forEach(function(s){
+  var z=zetaOf(s.r);
+  if(z<ZMIN)ZMIN=z; if(z>ZMAX)ZMAX=z;
+});
+var HUE_T=[0,0.40,0.75,1];
+var HUE_H=[-2,32,60,212];
+function rayHue(z){
+  var t=(z-ZMIN)/((ZMAX-ZMIN)||1);
+  t=t<0?0:t>1?1:t;
+  var h=HUE_H[3];
+  for(var i=0;i<3;i++){
+    if(t<=HUE_T[i+1]){
+      var f=(t-HUE_T[i])/(HUE_T[i+1]-HUE_T[i]);
+      h=HUE_H[i]+f*(HUE_H[i+1]-HUE_H[i]);
+      break;
+    }
+  }
+  return ((h%360)+360)%360;
+}
+
+/* isometric projection */
+var ca=Math.cos(Math.PI/4),sa=Math.sin(Math.PI/4);
+var cb=Math.cos(35.264*Math.PI/180),sb=Math.sin(35.264*Math.PI/180);
+function proj(p){
+  var hz=p[0]*ca+p[1]*sa;
+  return {x:-p[0]*sa+p[1]*ca, y:hz*sb-p[2]*cb, d:hz*cb+p[2]*sb};
+}
+
+/* ============================================================
+   CANVAS / STATE
+   ============================================================ */
+var cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+var cw=0,ch=0,fit=null;
+var effect=1,target=1,morphing=false,hover=-1;
+var rayScreen=[];
+var bg=Array.from({length:70},function(){return {x:rnd(),y:rnd(),a:0.04+rnd()*0.10};});
+
+function computeFit(){
+  var fp=[],k,a;
+  stars.forEach(function(s){fp.push(s.p);});
+  for(k=0;k<16;k++){
+    a=k/16*TAU;
+    fp.push(diskPos(RING,a,0));
+    fp.push(add(O,diskPos(RING,a,0)));
+  }
+  fp.push(O);
+  var x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
+  fp.forEach(function(p){var q=proj(p);
+    if(q.x<x0)x0=q.x;if(q.x>x1)x1=q.x;if(q.y<y0)y0=q.y;if(q.y>y1)y1=q.y;});
+  var pl=30,pr=30,pt=34,pb=58;
+  var s=Math.min((cw-pl-pr)/(x1-x0),(ch-pt-pb)/(y1-y0));
+  fit={s:s,ox:pl+((cw-pl-pr)-(x1-x0)*s)/2-x0*s,oy:pt+((ch-pt-pb)-(y1-y0)*s)/2-y0*s};
+}
+
+/* ============================================================
+   LIGHT RAY — Bézier from a star to its own image,
+   gently sagging toward the tube axis (stays on its own
+   meridian, so neighboring rays never cross)
+   ============================================================ */
+function bez(p0,p1,p2,p3,t){
+  var m=1-t,a=m*m*m,b=3*m*m*t,c=3*m*t*t,d=t*t*t;
+  return [a*p0[0]+b*p1[0]+c*p2[0]+d*p3[0],
+          a*p0[1]+b*p1[1]+c*p2[1]+d*p3[1],
+          a*p0[2]+b*p1[2]+c*p2[2]+d*p3[2]];
+}
+function rayPts(st,z){
+  var S=st.p;
+  var E=add(O,mul(st.dp,z));
+  var Dv=sub(E,S),L=vlen(Dv),u=mul(Dv,1/L);
+  var mid=mul(add(S,E),0.5);
+  var axisPt=mul(UAX,dot(mid,UAX));
+  var toC=vnorm(sub(axisPt,mid));
+  var bow=0.05*L*effect*(1+(1-z)*0.9);
+  var P1=add(add(S,mul(u,0.16*L)),mul(toC,bow*0.7));
+  var P2=add(sub(E,mul(u,0.34*L)),mul(toC,bow*1.3));
+  var pts=[],i;
+  for(i=0;i<=26;i++)pts.push(bez(S,P1,P2,E,i/26));
+  return pts;
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+function render(){
+  if(!fit)return;
+  ctx.fillStyle='#03030a';ctx.fillRect(0,0,cw,ch);
+  bg.forEach(function(b){ctx.fillStyle='rgba(255,255,255,'+b.a+')';ctx.fillRect(b.x*cw,b.y*ch,1,1);});
+
+  var dMin=1e9,dMax=-1e9;
+  function Pt(p){
+    var q=proj(p),X=q.x*fit.s+fit.ox,Y=q.y*fit.s+fit.oy;
+    if(q.d<dMin)dMin=q.d;if(q.d>dMax)dMax=q.d;
+    return {x:X,y:Y,d:q.d};
+  }
+  function ring(c,r,col,dashed){
+    var N=72,i,q,cc=Pt(c),mn=1e9,mx=-1e9;
+    ctx.strokeStyle=col;ctx.lineWidth=1;
+    if(dashed)ctx.setLineDash([5,5]);
+    ctx.beginPath();
+    for(i=0;i<=N;i++){
+      var a=i/N*TAU;
+      q=Pt(add(c,add(mul(E1,r*Math.cos(a)),mul(E2,r*Math.sin(a)))));
+      if(i===0)ctx.moveTo(q.x,q.y);else ctx.lineTo(q.x,q.y);
+      if(q.y<mn)mn=q.y;if(q.y>mx)mx=q.y;
+    }
+    ctx.stroke();ctx.setLineDash([]);
+    return {min:mn,max:mx,cx:cc.x};
+  }
+  function diskGlow(c,R,rgb,a){
+    var cc=Pt(c), q1=proj(E1), q2=proj(E2);
+    ctx.save();
+    ctx.transform(q1.x*fit.s,q1.y*fit.s,q2.x*fit.s,q2.y*fit.s,cc.x,cc.y);
+    var g=ctx.createRadialGradient(0,0,0,0,0,R);
+    g.addColorStop(0,'rgba('+rgb+','+a+')');
+    g.addColorStop(0.45,'rgba('+rgb+','+(a*0.38)+')');
+    g.addColorStop(1,'rgba('+rgb+',0)');
+    ctx.fillStyle=g;
+    ctx.beginPath();ctx.arc(0,0,R,0,TAU);ctx.fill();
+    ctx.restore();
+  }
+  function glow(p,r,rgb,a){
+    if(r<2)return;
+    var g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,r);
+    g.addColorStop(0,'rgba('+rgb+','+a+')');
+    g.addColorStop(1,'rgba('+rgb+',0)');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(p.x,p.y,r,0,TAU);ctx.fill();
+  }
+
+  /* faint tube axis */
+  (function(){
+    var a=Pt([0,0,0]), b=Pt(O);
+    ctx.setLineDash([3,7]);
+    ctx.strokeStyle='rgba(180,180,220,0.10)';
+    ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+    ctx.setLineDash([]);
+  })();
+
+  /* cap rings */
+  var extG=ring([0,0,0],RING,'rgba(255,179,71,0.18)');
+  ring([0,0,0],8,'rgba(255,179,71,0.10)');
+  ring([0,0,0],4,'rgba(255,179,71,0.10)');
+  var extO=ring(O,RING,'rgba(255,179,71,'+(0.10+0.22*effect)+')',true);
+  var zRim=zetaEff(RING,effect);
+  ring(O,Math.max(RING*zRim,0.5),'rgba(78,205,196,'+(0.14+0.16*effect)+')');
+
+  /* cap glows */
+  diskGlow([0,0,0],13,'255,180,110',0.14);
+  diskGlow([0,0,0],5.2,'255,205,150',0.22);
+  glow(Pt([0,0,0]),3.6*fit.s,'255,210,150',0.24);
+  glow(Pt([0,0,0]),1.4*fit.s,'255,235,195',0.34);
+  var og=1-0.45*effect;
+  diskGlow(O,13*og,'80,220,208',0.07+0.06*effect);
+  diskGlow(O,5.2*og,'110,235,225',0.11+0.07*effect);
+  glow(Pt(O),(2.4-1.0*effect)*fit.s,'120,235,225',0.18);
+
+  /* depth-sorted items */
+  var items=[];
+  function item(d,fn){items.push({d:d,fn:fn});}
+
+  /* ---- light rays ----
+     Depth-cued: rays on the far side of the tube are dimmed, so
+     the ribbed cone reads cleanly front-to-back.                 */
+  rayScreen.length=0;
+  sources.forEach(function(s,i){
+    var z=zetaEff(s.r,effect);
+    var scr=rayPts(s,z).map(Pt);
+    rayScreen.push({i:i,pts:scr});
+    var hot=(i===hover);
+    (function(scr,hot,s){item(scr[13].d,function(dep){
+      var hue=rayHue(zetaOf(s.r));
+      var e=effect;
+      var depthFade=0.55+0.45*dep;               /* far → dimmer */
+      var sat=hot?85:(16+56*e);
+      var lig=hot?62:(85-15*e);
+      var alp=hot?1.0:((0.07+0.17*e)*depthFade);
+      var col='hsla('+hue+','+sat+'%,'+lig+'%';
+
+      ctx.beginPath();
+      ctx.moveTo(scr[0].x,scr[0].y);
+      for(var k=1;k<scr.length;k++)ctx.lineTo(scr[k].x,scr[k].y);
+
+      if(hot){
+        ctx.strokeStyle=col+',0.28)';
+        ctx.lineWidth=7;
+        ctx.stroke();
+      }
+      ctx.strokeStyle=col+','+alp+')';
+      ctx.lineWidth=hot?2.8:1.4;
+      ctx.stroke();
+    });})(scr,hot,s);
+  });
+
+  /* ---- stars + images ---- */
+  stars.forEach(function(st){
+    (function(q,st){item(q.d,function(){
+      if(st.src) glow(q,st.sz*3.4,'255,222,178',0.22);
+      ctx.fillStyle=st.c;
+      ctx.beginPath();ctx.arc(q.x,q.y,st.sz*(st.src?1.15:1.18),0,TAU);ctx.fill();
+    });})(Pt(st.p),st);
+    (function(q,st){item(q.d,function(){
+      if(st.src) glow(q,st.sz*3.0,'140,240,230',0.18);
+      ctx.fillStyle=st.c2;
+      ctx.beginPath();ctx.arc(q.x,q.y,st.sz*(st.src?1.05:1.05),0,TAU);ctx.fill();
+    });})(Pt(add(O,mul(st.dp,zetaEff(st.r,effect)))),st);
+  });
+
+  if(hover>=0){
+    var s=sources[hover],z=zetaEff(s.r,effect);
+    var p1=Pt(s.p),p2=Pt(add(O,mul(s.dp,z)));
+    item(1e9,function(){
+      ctx.lineWidth=1.8;
+      ctx.strokeStyle='#ffcf8a';ctx.beginPath();ctx.arc(p1.x,p1.y,6,0,TAU);ctx.stroke();
+      ctx.strokeStyle='#6fd8cf';ctx.beginPath();ctx.arc(p2.x,p2.y,6,0,TAU);ctx.stroke();
+    });
+  }
+
+  items.sort(function(a,b){return a.d-b.d;});
+  var span=(dMax-dMin)||1;
+  items.forEach(function(it){it.fn((it.d-dMin)/span);});
+
+  /* observer mark */
+  var oc=Pt(O);
+  ctx.strokeStyle='rgba(78,205,196,0.45)';ctx.lineWidth=1;
+  ctx.beginPath();
+  ctx.moveTo(oc.x-3.5,oc.y);ctx.lineTo(oc.x+3.5,oc.y);
+  ctx.moveTo(oc.x,oc.y-3.5);ctx.lineTo(oc.x,oc.y+3.5);
+  ctx.stroke();
+
+  /* labels */
+  ctx.textAlign='center';
+  ctx.shadowColor='rgba(0,0,0,0.9)';ctx.shadowBlur=3;
+  ctx.font='600 '+Math.max(12,fit.s*0.95)+'px system-ui,sans-serif';
+  ctx.fillStyle='rgba(255,190,95,0.92)';
+  ctx.fillText('TRUE FRAME',extG.cx,extG.max+18);
+  ctx.font='italic '+Math.max(10,fit.s*0.72)+'px system-ui,sans-serif';
+  ctx.fillStyle='rgba(255,179,71,0.52)';
+
+  ctx.font='600 '+Math.max(12,fit.s*0.95)+'px system-ui,sans-serif';
+  ctx.fillStyle='rgba(88,222,210,0.95)';
+  ctx.fillText('OBSERVED FRAME',extO.cx,extO.max+18);
+  ctx.font='italic '+Math.max(10,fit.s*0.72)+'px system-ui,sans-serif';
+  ctx.fillStyle='rgba(78,205,196,0.58)';
+
+  if(effect>0.35){
+    ctx.font='italic '+Math.max(11,fit.s*0.75)+'px system-ui,sans-serif';
+    ctx.fillStyle='rgba(255,179,71,'+(Math.min(1,(effect-0.35)/0.5)*0.6)+')';
+
+  }
+  ctx.shadowBlur=0;
+}
+
+/* ============================================================
+   SIZING
+   ============================================================ */
+function resize(){
+  var box=document.querySelector('.stage .box');
+  var w=box.clientWidth,h=box.clientHeight;
+  if(!w||!h)return;
+  cv.width=Math.round(w*DPR);cv.height=Math.round(h*DPR);
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  cw=w;ch=h;
+  computeFit();render();
+}
+
+/* ============================================================
+   INTERACTION
+   ============================================================ */
+function distToSeg(px,py,a,b){
+  var dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;
+  if(l2===0)return Math.hypot(px-a.x,py-a.y);
+  var t=((px-a.x)*dx+(py-a.y)*dy)/l2;
+  t=t<0?0:t>1?1:t;
+  return Math.hypot(px-(a.x+t*dx),py-(a.y+t*dy));
+}
+
+var tip=document.getElementById('tip');
+cv.addEventListener('mousemove',function(e){
+  var r=cv.getBoundingClientRect();
+  var mx=e.clientX-r.left,my=e.clientY-r.top;
+  var best=-1,bd=15;
+  rayScreen.forEach(function(rs){
+    for(var k=0;k<rs.pts.length-1;k++){
+      var d=distToSeg(mx,my,rs.pts[k],rs.pts[k+1]);
+      if(d<bd){bd=d;best=rs.i;}
+    }
+  });
+  cv.style.cursor=best>=0?'pointer':'crosshair';
+  if(best!==hover){hover=best;render();}
+  if(best>=0){
+    var s=sources[best],z=zetaEff(s.r,effect);
+    tip.style.display='block';
+    tip.style.left=Math.min(e.clientX+14,window.innerWidth-190)+'px';
+    tip.style.top=(e.clientY-12)+'px';
+    tip.innerHTML='r<sub>true</sub> = '+s.r.toFixed(1)+' kpc &nbsp;→&nbsp; r<sub>obs</sub> = '+(s.r*z).toFixed(1)+' kpc<br><span>ζ(r) = '+z.toFixed(2)+'</span>';
+  }else tip.style.display='none';
+});
+cv.addEventListener('mouseleave',function(){
+  tip.style.display='none';
+  cv.style.cursor='crosshair';
+  if(hover>=0){hover=-1;render();}
+});
+
+/* toggle: rigid ↔ compliant — cylinder ↔ cone */
+var bR=document.getElementById('bRigid'),bC=document.getElementById('bComp');
+function setTarget(t){
+  if(t===target)return;
+  target=t;
+  bR.classList.toggle('on',t===0);
+  bC.classList.toggle('on',t===1);
+  if(morphing)return;
+  morphing=true;
+  var e0=effect,t0=performance.now(),dur=900;
+  (function step(now){
+    var u=Math.min((now-t0)/dur,1);
+    var k=(u<0.5)?4*u*u*u:1-Math.pow(-2*u+2,3)/2;
+    effect=e0+(target-e0)*k;
+    render();
+    if(u<1)requestAnimationFrame(step);else morphing=false;
+  })(t0);
+}
+bR.onclick=function(){setTarget(0);};
+bC.onclick=function(){setTarget(1);};
+
+/* boot */
+new ResizeObserver(function(){requestAnimationFrame(resize);}).observe(document.querySelector('.stage .box'));
+window.addEventListener('load',resize);
+resize();
+})();
+</script>
+</body>
+</html>
