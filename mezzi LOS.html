@@ -3,7 +3,49 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>The Mezzi Effect</title>
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-104TPV326N"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-104TPV326N');
+</script>
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-TRGMTJZG');</script>
+<!-- End Google Tag Manager -->
+
+<title>The Mezzi Effect, Apparent Compression of Light in a Compliant Vacuum</title>
+
+<!-- ==================== SEO ==================== -->
+<meta name="description" content="Interactive 3D illustration of the Mezzi effect, Galaxy light crossing a compliant vacuum (C ≈ 377) arrives apparently compressed, so the observed frame is smaller than the true frame." />
+<meta name="keywords" content="Mezzi effect, apparent compression, compliant vacuum, vacuum compliance constant, C = 377, Painlevé-Gullstrand, light propagation, observation operator, true frame, observed frame, missing mass, missing area, galaxy visualization, astrophysics illustration" />
+<meta name="author" content="Galaxy Rotation Curve Project" />
+<meta name="theme-color" content="#05050d" />
+
+<!-- Set when the page has its final URL:
+<link rel="canonical" href="https://YOUR-DOMAIN/mezzi-effect.html" />
+-->
+
+<!-- ==================== Open Graph (social previews) ==================== -->
+<meta property="og:title" content="The Mezzi Effect, Apparent Compression of Light in a Compliant Vacuum" />
+<meta property="og:description" content="Light rays leave a galaxy, cross a compliant vacuum (C ≈ 377), and arrive apparently compressed: the True Frame is received as a smaller Observed Frame. Toggle rigid (C = 0) vs compliant vacuum; hover the rays for r_true → r_obs and ζ." />
+<meta property="og:type" content="website" />
+<!-- Add a 1200×630 thumbnail when available:
+<meta property="og:image" content="https://YOUR-DOMAIN/img/mezzi-effect.png" />
+-->
+
+<!-- ==================== Twitter Card ==================== -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="The Mezzi Effect, Apparent Compression in a Compliant Vacuum" />
+<meta name="twitter:description" content="Interactive 3D illustration: light crossing a compliant vacuum (C ≈ 377) arrives apparently compressed, toggle rigid vs compliant vacuum, hover the rays." />
+<!-- <meta name="twitter:image" content="https://YOUR-DOMAIN/img/mezzi-effect.png" /> -->
+
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{height:100%;overflow:hidden}
@@ -13,7 +55,7 @@
     font-family:Georgia,'Times New Roman',serif;
     display:flex;flex-direction:column;align-items:center;
   }
-  header{flex:none;text-align:center;padding:1.2vh 16px 0.7vh}
+  header{flex:none;text-align:center;padding:1.2vh 92px 0.7vh}
   h1{
     font-size:clamp(24px,4.4vmin,42px);font-weight:400;
     letter-spacing:.16em;color:#ececf6;
@@ -71,16 +113,51 @@
     padding:7px 12px;font:13.5px system-ui,sans-serif;color:#d4d4ec;pointer-events:none;z-index:9;
     box-shadow:0 4px 18px rgba(0,0,0,.55);line-height:1.5;white-space:nowrap}
   #tip span{color:#6fd8cf}
+
+  /* ---------- share button (top right) ---------- */
+  #shareButton{
+    position:fixed;top:14px;right:14px;z-index:10;
+    padding:7px 16px;background:#0b0b18;color:#8a8aa8;
+    border:1.5px solid #34345c;border-radius:22px;
+    cursor:pointer;font:600 12px/1 system-ui,sans-serif;letter-spacing:.09em;
+    transition:color .2s,border-color .2s,background .2s;
+  }
+  #shareButton:hover{
+    color:#d2e2ee;border-color:rgba(90,214,207,.6);
+    background:rgba(90,214,207,.08);
+  }
+
+  /* ---------- toast ---------- */
+  #toast{
+    visibility:hidden;min-width:200px;margin-left:-100px;
+    background-color:#15152c;border:1px solid #2e2e55;color:#d4d4ec;
+    text-align:center;border-radius:8px;padding:10px 16px;
+    position:fixed;z-index:11;left:50%;bottom:30px;
+    font:13px system-ui,sans-serif;
+    opacity:0;transition:opacity .5s ease,transform .5s ease;
+  }
+
+  @media (max-width:560px){
+    header{padding-left:70px;padding-right:70px}
+    #shareButton{padding:6px 12px;top:10px;right:10px}
+  }
 </style>
 </head>
 <body>
 
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TRGMTJZG"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+
 <header>
   <h1>THE MEZZI EFFECT</h1>
   <h2 class="cite">
-  </a> ILLUSTRATION </a>
+    ILLUSTRATION
   </h2>
 </header>
+
+<button id="shareButton" type="button" aria-label="Copy page link" title="Copy page link">Share</button>
 
 <div class="stage"><div class="box"><canvas id="cv"></canvas></div></div>
 
@@ -97,13 +174,14 @@
 </div>
 
 <div id="tip"></div>
+<div id="toast"></div>
 
 <script>
 (function(){
 'use strict';
 var DPR=Math.min(window.devicePixelRatio||1,2), TAU=Math.PI*2;
 
-/* seeded RNG — stable scene */
+/* seeded RNG, stable scene */
 var _s=20260413;
 function rnd(){_s=(_s*1664525+1013904223)>>>0;return _s/4294967296;}
 function gauss(){return (rnd()+rnd()+rnd()+rnd()-2)*1.15;}
@@ -149,7 +227,7 @@ function zetaOf(r){return Math.max(Math.exp(C_COMP*(Math.exp(Aof(r))-1)),0.02);}
 function zetaEff(r,e){return 1+e*(zetaOf(r)-1);}
 
 /* ============================================================
-   TUBE GEOMETRY — both disks lie in the plane ⊥ UAX
+   TUBE GEOMETRY, both disks lie in the plane ⊥ UAX
    ============================================================ */
 var UAX=vnorm([-0.363, 0.696, 0.62]);
 var E1=vnorm([-UAX[1], UAX[0], 0]);
@@ -184,7 +262,7 @@ function armTheta(arm,r){return arm*Math.PI + r*0.42;}
       c :'hsla('+(38+rnd()*14)+','+(75+rnd()*15)+'%,'+(74+rnd()*12)+'%,1)',
       c2:'hsla(176,62%,'+(80+rnd()*8)+'%,0.9)'});
   }
-  /* disk — two-armed spiral */
+  /* disk, two-armed spiral */
   for(i=0;i<430;i++){
     r=-Math.log(1-rnd()*0.985)*3.4+0.35; r=Math.min(r,11.8);
     th=armTheta(i%2,r) + gauss()*(0.20+0.03*r);
@@ -201,7 +279,7 @@ function armTheta(arm,r){return arm*Math.PI + r*0.42;}
   }
   /* ---- ray sources: 8 arm knots with nearly EVEN angular spread ----
      Knots are genuine members of the spiral (arm θ = arm·π + 0.42r),
-     picked so their angles fall ~45°–50° apart around the cap — the
+     picked so their angles fall ~45°–50° apart around the cap, the
      rays then fan out like the ribs of a cone instead of crossing.   */
   [
     {r: 8.0, arm:1},   /* θ ≈ 0.22 */
@@ -286,7 +364,7 @@ function computeFit(){
 }
 
 /* ============================================================
-   LIGHT RAY — Bézier from a star to its own image,
+   LIGHT RAY, Bézier from a star to its own image,
    gently sagging toward the tube axis (stays on its own
    meridian, so neighboring rays never cross)
    ============================================================ */
@@ -534,7 +612,7 @@ cv.addEventListener('mouseleave',function(){
   if(hover>=0){hover=-1;render();}
 });
 
-/* toggle: rigid ↔ compliant — cylinder ↔ cone */
+/* toggle: rigid ↔ compliant, cylinder ↔ cone */
 var bR=document.getElementById('bRigid'),bC=document.getElementById('bComp');
 function setTarget(t){
   if(t===target)return;
@@ -559,6 +637,39 @@ bC.onclick=function(){setTarget(1);};
 new ResizeObserver(function(){requestAnimationFrame(resize);}).observe(document.querySelector('.stage .box'));
 window.addEventListener('load',resize);
 resize();
+})();
+</script>
+
+<script>
+/* ============================================================
+   SHARE BUTTON + TOAST (same behavior as the companion pages)
+   ============================================================ */
+(function(){
+'use strict';
+var btn=document.getElementById('shareButton');
+var toast=document.getElementById('toast');
+var tT=null;
+function showToast(msg){
+  toast.textContent=msg;
+  toast.style.visibility='visible';
+  toast.style.opacity='1';
+  toast.style.transform='translateY(0)';
+  clearTimeout(tT);
+  tT=setTimeout(function(){
+    toast.style.opacity='0';
+    toast.style.transform='translateY(20px)';
+    setTimeout(function(){toast.style.visibility='hidden';},500);
+  },3000);
+}
+btn.addEventListener('click',function(){
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(window.location.href)
+      .then(function(){showToast('Link copied to clipboard!');})
+      .catch(function(){showToast('Failed to copy the link.');});
+  }else{
+    showToast('Failed to copy the link.');
+  }
+});
 })();
 </script>
 </body>
